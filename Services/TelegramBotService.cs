@@ -21,6 +21,36 @@ public class TelegramBotService
     private string CardNumber => _config["Payment:CardNumber"] ?? string.Empty;
     private string WalletAddress => _config["Payment:WalletAddress"] ?? string.Empty;
 
+    private static ReplyKeyboardMarkup BuildMainKeyboard()
+    {
+        return new ReplyKeyboardMarkup([
+            [
+                new KeyboardButton("💵 خرید کانفیگ ")
+            ]
+        ])
+        {
+            ResizeKeyboard = true,      // سایز بهینه
+            OneTimeKeyboard = false,    // بعد از کلیک مخفی نشه
+                                        // IsPersistent = true,     // اگر نسخه‌ی کتابخانه‌ات پشتیبانی می‌کند، کیبورد را پایدار کن
+            InputFieldPlaceholder = "لطفا یکی از گزینه های زیر را انتخاب کنید 👇"
+        };
+    }
+
+    private static ReplyKeyboardMarkup BuildAdminKeyboard()
+    {
+        return new ReplyKeyboardMarkup([
+            [
+                new KeyboardButton("⬆️ ارسال کانفیگ")
+            ]
+        ])
+        {
+            ResizeKeyboard = true,      // سایز بهینه
+            OneTimeKeyboard = false,    // بعد از کلیک مخفی نشه
+                                        // IsPersistent = true,     // اگر نسخه‌ی کتابخانه‌ات پشتیبانی می‌کند، کیبورد را پایدار کن
+            InputFieldPlaceholder = "لطفا یکی از گزینه های زیر را انتخاب کنید 👇"
+        };
+    }
+
     public TelegramBotService(IConfiguration config, ILogger<TelegramBotService> logger, XuiService xuiService)
     {
         _config = config;
@@ -51,13 +81,30 @@ public class TelegramBotService
 
     private async Task HandleMessage(Message message)
     {
-        if (message.Text == "/start")
+        if (message.Text == "/start" && message.Chat.Id != AdminChatId)
         {
-            await SendPlanOptions(message.Chat.Id);
+            var chatId = message.Chat.Id;
+            await _bot.SendMessage(
+                chatId,
+                "🌟 به بات نت‌کی خوش اومدی! از منوی زیر یکی از گزینه‌ها رو انتخاب کن:",
+                replyMarkup: BuildMainKeyboard()
+            );
+        }
+        if (message.Text == "/start" && message.Chat.Id == AdminChatId)
+        {
+            await _bot.SendMessage(message!.Chat.Id, @"🌸✨
+همکار عزیز، پشتیبان محترم نت‌کی
+به بات پشتیبانی خوش اومدی ☺️💙
+امیدوارم تجربه‌ای راحت و سریع داشته باشی 🙌"
+            );
         }
         else if (message.Photo?.Any() == true)
         {
             await HandleReceipt(message);
+        }
+        else if (message.Text.Contains("خرید کانفیگ") && message.Chat.Id != AdminChatId)
+        {
+            await SendPlanOptions(message.Chat.Id);
         }
     }
 
@@ -65,7 +112,20 @@ public class TelegramBotService
     {
         var plans = _config.GetSection("Plans").Get<List<Plan>>() ?? new();
         var buttons = plans.Select(p => new[] { InlineKeyboardButton.WithCallbackData($"{p.Name} - {p.Price}", $"plan:{p.Id}") });
-        await _bot.SendMessage(chatId, "یک طرح را انتخاب کنید:", replyMarkup: new InlineKeyboardMarkup(buttons));
+        await _bot.SendMessage(chatId, @"همراه گرامی نت کی 🌹
+تعرفه‌های نت‌کی خدمتتون ارسال شد.
+لطفاً یکی از طرح‌ها رو انتخاب بفرمایید تا همکاران ما در نت کی در سریع‌ترین زمان فعال‌سازی طرح شما رو انجام بدن.",
+replyMarkup: new InlineKeyboardMarkup(buttons));
+    }
+
+    private async Task SendPlanOptionsAgain(long chatId)
+    {
+        var plans = _config.GetSection("Plans").Get<List<Plan>>() ?? new();
+        var buttons = plans.Select(p => new[] { InlineKeyboardButton.WithCallbackData($"{p.Name} - {p.Price}", $"plan:{p.Id}") });
+        await _bot.SendMessage(chatId, @"همراه گرامی نت کی 🌹
+سپاس از پرداخت تون 🙏
+لطفا انتخاب کنید که رسید ارسالی بابت کدام یکی از طرح های ماست سپس مجددا رسید رو ارسال کنید.",
+replyMarkup: new InlineKeyboardMarkup(buttons));
     }
 
     private async Task HandleCallback(CallbackQuery query)
@@ -78,27 +138,55 @@ public class TelegramBotService
             if (plan != null)
             {
                 _userPlans[query.From.Id] = plan;
-                await _bot.SendMessage(query.Message!.Chat.Id, $"هزینه {plan.Price} را به کارت {CardNumber}\nیا کیف پول {WalletAddress} واریز کرده و رسید را ارسال کنید.",
-                    replyMarkup: new ReplyKeyboardMarkup(new[] { new KeyboardButton("ارسال رسید") }) { ResizeKeyboard = true });
+                await _bot.SendMessage(query.Message!.Chat.Id, $@"✅ طرح انتخابی شما: {plan.Description}.
+
+💳 لطفاً مبلغ {plan.Price} تومان را جهت تکمیل فرایند به کارت زیر واریز فرمایید و رسید را ارسال کنید:
+
+6219861070956510
+
+⚠️ نکته مهم:
+انتخاب طرح به معنی نهایی شدن آن نیست. شما می‌توانید هر تعداد بار طرح خود را تغییر دهید.
+تا زمانی که رسید پرداخت ارسال نشود، آخرین طرح انتخابی شما به عنوان طرح فعال در نظر گرفته می‌شود.");
             }
         }
         else if (query.Data.StartsWith("approve:"))
         {
             var userId = long.Parse(query.Data.Split(':')[1]);
-            if (_userPlans.TryGetValue(userId, out var plan))
-            {
-                var (link, qr) = await _xuiService.CreateInboundAsync(userId, plan);
-                await _bot.SendMessage(userId, $"کانفیگ شما:\n{link}");
-                using var ms = new MemoryStream(qr);
-                await _bot.SendPhoto(userId, InputFile.FromStream(ms, "qr.png"));
-            }
-            await _bot.SendMessage(query.From.Id, "تایید شد");
+            // if (_userPlans.TryGetValue(userId, out var plan))
+            // {
+            //     var (link, qr) = await _xuiService.CreateInboundAsync(userId, plan);
+            //     await _bot.SendMessage(userId, $"کانفیگ شما:\n{link}");
+            //     using var ms = new MemoryStream(qr);
+            //     await _bot.SendPhoto(userId, InputFile.FromStream(ms, "qr.png"));
+            // }
+            // await _bot.SendMessage(query.From.Id, "تایید شد");
+
+            await _bot.SendMessage(userId, @$"✅ کاربر عزیز، رسید شما تایید شد.
+برای دریافت کانفیگ خود لطفاً با کد رهگیری به پشتیبانی مراجعه کنید 🙏
+
+💻 پشتیبانی نت کی: 
+@NetKeySupport
+
+🆔 کد رهگیری: 
+{userId}");
+            await _bot.SendMessage(query.From.Id, @"📌 همکار گرامی، رسیدی که تایید کردید با موفقیت ثبت و به کاربر اطلاع داده شد.
+⚠️ لطفاً توجه داشته باشید که مشتری جهت پیگیری با کد رهگیری به شما مراجعه خواهد کرد؛ لطفا لینک کاربر آماده تحویل باشه و در دسترس باشید.");
+
+
         }
         else if (query.Data.StartsWith("reject:"))
         {
             var userId = long.Parse(query.Data.Split(':')[1]);
-            await _bot.SendMessage(userId, "رسید شما رد شد. لطفا مجدد اقدام کنید.");
-            await _bot.SendMessage(query.From.Id, "رد شد");
+            await _bot.SendMessage(userId, @$"⚠️ کاربر عزیز، رسید شما رد شد.
+برای پیگیری دلیل رد، لطفاً با کد رهگیری به پشتیبانی مراجعه کنید 🙏
+
+💻 پشتیبانی نت کی: 
+@NetKeySupport
+
+🆔 کد رهگیری: 
+{userId}");
+            await _bot.SendMessage(query.From.Id, @"📌 همکار گرامی، رسیدی که رد کردید با موفقیت ثبت و به کاربر اطلاع داده شد.
+⚠️ لطفاً توجه داشته باشید که مشتری جهت پیگیری با کد رهگیری به شما مراجعه خواهد کرد؛ لطفا در دسترس باشید.");
         }
         await _bot.AnswerCallbackQuery(query.Id);
     }
@@ -113,18 +201,28 @@ public class TelegramBotService
         {
             await _bot.DownloadFile(file.FilePath!, fs);
         }
-        var caption = $"User: {message.From.Id} @{message.From.Username}\n" +
-                      (_userPlans.TryGetValue(message.From.Id, out var plan) ? $"Plan: {plan.Name}" : "");
-        using var stream = System.IO.File.OpenRead(path);
-        var buttons = new InlineKeyboardMarkup(new[]
+        _userPlans.TryGetValue(message.From.Id, out var plan);
+        if (plan is not null)
         {
+            var caption = $"User: {message.From.Id} @{message.From.Username}\nPlan: {plan.Name}";
+            using var stream = System.IO.File.OpenRead(path);
+            var buttons = new InlineKeyboardMarkup(new[]
+            {
             new[]
             {
                 InlineKeyboardButton.WithCallbackData("تایید", $"approve:{message.From.Id}"),
                 InlineKeyboardButton.WithCallbackData("رد", $"reject:{message.From.Id}")
             }
         });
-        await _bot.SendPhoto(AdminChatId, InputFile.FromStream(stream, Path.GetFileName(path)), caption: caption, replyMarkup: buttons);
-        await _bot.SendMessage(message.Chat.Id, "رسید دریافت شد. منتظر تایید بمانید.");
+            await _bot.SendPhoto(AdminChatId, InputFile.FromStream(stream, Path.GetFileName(path)), caption: caption, replyMarkup: buttons);
+            await _bot.SendMessage(message.Chat.Id, @"🙏 با تشکر از اعتماد شما
+📩 رسید با موفقیت دریافت شد.
+لطفاً تا تأیید نهایی توسط همکاران عزیز ما در نت‌کی شکیبا باشید 🌸");
+        }
+        else
+        {
+            await SendPlanOptionsAgain(message.Chat.Id);
+        }
+
     }
 }
