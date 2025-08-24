@@ -25,7 +25,9 @@ public class TelegramBotService
     {
         return new ReplyKeyboardMarkup([
             [
-                new KeyboardButton("💵 خرید کانفیگ ")
+                // new KeyboardButton("💵 خرید کانفیگ ")
+                new KeyboardButton("👨‍💻 پشتیبانی"),
+                new KeyboardButton("🎉 خرید کانفیگ جشنواره"),
             ]
         ])
         {
@@ -106,22 +108,39 @@ public class TelegramBotService
         {
             await SendPlanOptions(message.Chat.Id);
         }
+        else if (message.Text.Contains("پشتیبانی") && message.Chat.Id != AdminChatId)
+        {
+            await _bot.SendMessage(message.Chat.Id, @"👨‍💻 پشتیبانی نت‌کی
+برای ارتباط سریع: @NetKeySupport
+ایمیل: netkey.v2ray@gmail.com
+
+📝 لطفاً هنگام پیام این موارد را بفرستید:
+• شماره پیگیری
+• طرح انتخابی
+• توضیح کوتاه مشکل/درخواست
+تا سریع‌تر رسیدگی کنیم 🙏");
+        }
     }
 
     private async Task SendPlanOptions(long chatId)
     {
-        var plans = _config.GetSection("Plans").Get<List<Plan>>() ?? new();
-        var buttons = plans.Select(p => new[] { InlineKeyboardButton.WithCallbackData($"{p.Name} - {p.Price}", $"plan:{p.Id}") });
-        await _bot.SendMessage(chatId, @"همراه گرامی نت کی 🌹
-تعرفه‌های نت‌کی خدمتتون ارسال شد.
+        var plans = _config.GetSection("SpecialPlans").Get<List<Plan>>() ?? new();
+        // var plans = _config.GetSection("Plans").Get<List<Plan>>() ?? new();
+        var buttons = plans.Select(p => new[] { InlineKeyboardButton.WithCallbackData($"{p.Name} - {p.Price} هزار تومان", $"plan:{p.Id}") });
+        //         await _bot.SendMessage(chatId, @"همراه گرامی نت کی 🌹
+        // تعرفه‌های نت‌کی خدمتتون ارسال شد.
+        // لطفاً یکی از طرح‌ها رو انتخاب بفرمایید تا همکاران ما در نت کی در سریع‌ترین زمان فعال‌سازی طرح شما رو انجام بدن.",
+        // replyMarkup: new InlineKeyboardMarkup(buttons));
+        await _bot.SendMessage(chatId, @"به جشنواره فروش نت کی خوش اومدید 🎉
 لطفاً یکی از طرح‌ها رو انتخاب بفرمایید تا همکاران ما در نت کی در سریع‌ترین زمان فعال‌سازی طرح شما رو انجام بدن.",
-replyMarkup: new InlineKeyboardMarkup(buttons));
+        replyMarkup: new InlineKeyboardMarkup(buttons));
     }
 
     private async Task SendPlanOptionsAgain(long chatId)
     {
-        var plans = _config.GetSection("Plans").Get<List<Plan>>() ?? new();
-        var buttons = plans.Select(p => new[] { InlineKeyboardButton.WithCallbackData($"{p.Name} - {p.Price}", $"plan:{p.Id}") });
+        var plans = _config.GetSection("SpecialPlans").Get<List<Plan>>() ?? new();
+        // var plans = _config.GetSection("Plans").Get<List<Plan>>() ?? new();
+        var buttons = plans.Select(p => new[] { InlineKeyboardButton.WithCallbackData($"{p.Name} - {p.Price} هزار تومان", $"plan:{p.Id}") });
         await _bot.SendMessage(chatId, @"همراه گرامی نت کی 🌹
 سپاس از پرداخت تون 🙏
 لطفا انتخاب کنید که رسید ارسالی بابت کدام یکی از طرح های ماست سپس مجددا رسید رو ارسال کنید.",
