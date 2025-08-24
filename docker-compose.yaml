@@ -1,0 +1,21 @@
+version: "3.9"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: netkey-bot:0.0.1
+    restart: always
+    container_name: netkey-bot
+    environment:
+      ASPNETCORE_URLS: "http://0.0.0.0:5152"
+      DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: "false"
+    volumes:
+      - ./receipts:/receipts:rw 
+    networks:
+      - netkey  
+
+networks:
+  netkey:
+    external: true
