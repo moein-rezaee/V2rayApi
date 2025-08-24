@@ -153,13 +153,13 @@ replyMarkup: new InlineKeyboardMarkup(buttons));
         if (query.Data.StartsWith("plan:"))
         {
             var planId = query.Data.Split(':')[1];
-            var plan = _config.GetSection("Plans").Get<List<Plan>>()?.FirstOrDefault(p => p.Id == planId);
+            var plan = _config.GetSection("SpecialPlans").Get<List<Plan>>()?.FirstOrDefault(p => p.Id == planId);
             if (plan != null)
             {
                 _userPlans[query.From.Id] = plan;
                 await _bot.SendMessage(query.Message!.Chat.Id, $@"✅ طرح انتخابی شما: {plan.Description}.
 
-💳 لطفاً مبلغ {plan.Price} تومان را جهت تکمیل فرایند به کارت زیر واریز فرمایید و رسید را ارسال کنید:
+💳 لطفاً مبلغ {plan.Price} هزار تومان را جهت تکمیل فرایند به کارت زیر واریز فرمایید و رسید را ارسال کنید:
 
 6219861070956510
 
