@@ -96,10 +96,8 @@ public class TelegramBotService
         {
             await _bot.SendMessage(message!.Chat.Id, @"🌸✨
 همکار عزیز، پشتیبان محترم نت‌کی
-به بات پشتیبانی خوش اومدی ☺️💙
-امیدوارم تجربه‌ای راحت و سریع داشته باشی 🙌",
-                replyMarkup: BuildAdminKeyboard()
-            );
+به بات پشتیبانی خوش اومدی ☺️❤️
+امیدوارم تجربه‌ای راحت و سریع داشته باشی 🙌");
         }
         else if (message.Photo?.Any() == true)
         {
@@ -128,12 +126,24 @@ public class TelegramBotService
             await _bot.SendMessage(
                 userId,
                 "⚠️ <b>کاربر گرامی</b>، رسید شما توسط همکاران ما در <b>نت‌کی</b> <b>رد شد</b>.\n\n" +
-                "📝 <b>علت رد:</b>\n<code>" + reason + "</code>\n\n" +
+                $"📝 <b>علت رد:</b>\n{reason}\n\n" +
                 "🔁 لطفاً پس از اصلاح، رسید صحیح را ارسال کنید یا در صورت تمایل طرح دیگری را انتخاب نمایید.\n\n" +
-                "💻 پشتیبانی نت‌کی: <code>@NetKeySupport</code>\n" +
-                "🆔 کُد رهگیری: <code>" + userId + "</code>",
+                "💻 پشتیبانی نت‌کی: \n@NetKeySupport\n\n" +
+                "🆔 کد رهگیری: \n<code>" + userId + "</code>",
                 parseMode: ParseMode.Html
             );
+
+            await _bot.SendMessage(
+                AdminChatId,
+                "⚠️ <b>همکار گرامی</b>\n" +
+                "ردِ رسید ثبت شد و به کاربر اطلاع داده شد.\n\n" +
+                $"📝 <b>علت رد:</b> {reason}\n\n" +
+                "📌 لطفاً در دسترس باشید؛ احتمال دارد کاربر با <b>کد رهگیری</b> مراجعه کند.\n" +
+                "ممنون از پیگیری‌تون 🙏\n\n" +
+                "🆔 <code>" + userId + "</code>",
+                parseMode: ParseMode.Html
+            );
+
         }
         else if (message.Text.Contains("config:") && message.Chat.Id == AdminChatId)
         {
@@ -145,14 +155,20 @@ public class TelegramBotService
                 chatId: userId,
                 photo: InputFile.FromStream(ms, "qr.png"),
                 caption:
-                    "✨ <b>با تشکر از اعتماد شما</b>\n" +
-                    "🎉 <b>کانفیگ شما آماده شد</b>\n\n" +
+                    "🙏 <b>با تشکر از اعتماد شما</b>\n\n" +
                     "📸 برای اتصال، <b>QR</b> را اسکن کنید یا از لینک زیر استفاده کنید:\n" +
                     "<code>" + configLink + "</code>\n\n" +
                     "🤝 در صورت داشتن <b>مشکل</b> یا <b>درخواست</b>، با همکاران ما در بخش <b>پشتیبانی</b> در ارتباط باشید:\n" +
                     "<a href=\"https://t.me/NetKeySupport\">@NetKeySupport</a>",
                 parseMode: ParseMode.Html
             );
+
+            await _bot.SendMessage(
+                AdminChatId,
+                "✅ <b>تسک انجام شد</b>!\n\nلینک کاربر ارسال و تحویل شد. دمت گرم ✌️❤️\nاگه موردی بود خبر بده.",
+                parseMode: ParseMode.Html
+            );
+
 
         }
     }
@@ -162,7 +178,7 @@ public class TelegramBotService
         using var generator = new QRCodeGenerator();
         using var data = generator.CreateQrCode(link, QRCodeGenerator.ECCLevel.Q);
         using var qrCode = new PngByteQRCode(data);
-        var qrBytes = qrCode.GetGraphic(20);
+        var qrBytes = qrCode.GetGraphic(15);
         return qrBytes;
     }
 
@@ -215,22 +231,14 @@ replyMarkup: new InlineKeyboardMarkup(buttons));
         else if (query.Data.StartsWith("approve:"))
         {
             var userId = long.Parse(query.Data.Split(':')[1]);
-            // if (_userPlans.TryGetValue(userId, out var plan))
-            // {
-            //     var (link, qr) = await _xuiService.CreateInboundAsync(userId, plan);
-            //     await _bot.SendMessage(userId, $"کانفیگ شما:\n{link}");
-            //     using var ms = new MemoryStream(qr);
-            //     await _bot.SendPhoto(userId, InputFile.FromStream(ms, "qr.png"));
-            // }
-            // await _bot.SendMessage(query.From.Id, "تایید شد");
 
-            await _bot.SendMessage(userId,
-                "✅ <b>کاربر گرامی</b>، رسید شما توسط همکاران ما در <b>نت‌کی</b> تأیید شد.\n\n" +
-                "⏳ تا لحظاتی دیگر <b>کانفیگ</b> شما ارسال خواهد شد.\n\n" +
-                "🆘 در صورت بروز هرگونه مشکل یا درخواست، با ارسال <b>کُد رهگیری</b> با همکاران ما در <b>نت‌کی</b> در ارتباط باشید.\n\n" +
-                "💻 پشتیبانی نت‌کی: <code>@NetKeySupport</code>\n" +
-                "🆔 کُد رهگیری: <code>" + userId + "</code>",
-                parseMode: ParseMode.Html);
+            // await _bot.SendMessage(userId,
+            //     "✅ <b>کاربر گرامی</b>، رسید شما توسط همکاران ما در <b>نت‌کی</b> تأیید شد.\n\n" +
+            //     "⏳ تا لحظاتی دیگر <b>کانفیگ</b> شما ارسال خواهد شد.\n\n" +
+            //     "🆘 در صورت بروز هرگونه مشکل یا درخواست، با ارسال <b>کُد رهگیری</b> با همکاران ما در <b>نت‌کی</b> در ارتباط باشید.\n\n" +
+            //     "💻 پشتیبانی نت‌کی: <code>@NetKeySupport</code>\n" +
+            //     "🆔 کُد رهگیری: <code>" + userId + "</code>",
+            //     parseMode: ParseMode.Html);
 
             var adminId = query.From.Id;
             await _bot.SendMessage(
@@ -238,8 +246,8 @@ replyMarkup: new InlineKeyboardMarkup(buttons));
                 "✅ <b>همکار گرامی</b>\n" +
                 "رسید توسط شما تأیید شد.\n\n" +
                 "📌 لطفاً لینک کاربر را با فرمت زیر ارسال کنید:\n" +
-                "<code>config:[telegramId]:[configVless]</code>" +
-                "🆔 کُد رهگیری: <code>" + userId + "</code>",
+                "config:[telegramId]:[configVless]\n\n" +
+                "🆔 <code>" + userId + "</code>",
                 parseMode: ParseMode.Html
             );
 
@@ -247,25 +255,25 @@ replyMarkup: new InlineKeyboardMarkup(buttons));
         else if (query.Data.StartsWith("reject:"))
         {
             var userId = long.Parse(query.Data.Split(':')[1]);
-            await _bot.SendMessage(
-                userId,
-                "⚠️ <b>کاربر گرامی</b>، رسید شما توسط همکاران ما در <b>نت‌کی</b> <b>رد شد</b>.\n\n" +
-                "⏳ تا لحظاتی دیگر <b>علت رد رسید</b> برای شما ارسال خواهد شد.\n\n" +
-                "🆘 برای پیگیری، با ارسال <b>کُد رهگیری</b> به پشتیبانی پیام دهید.\n\n" +
-                "💻 پشتیبانی نت‌کی: <code>@NetKeySupport</code>\n" +
-                "🆔 کُد رهگیری: <code>" + userId + "</code>",
-                parseMode: ParseMode.Html
-            );
+            // await _bot.SendMessage(
+            //     userId,
+            //     "⚠️ <b>کاربر گرامی</b>، رسید شما توسط همکاران ما در <b>نت‌کی</b> <b>رد شد</b>.\n\n" +
+            //     "⏳ تا لحظاتی دیگر <b>علت رد رسید</b> برای شما ارسال خواهد شد.\n\n" +
+            //     "🆘 برای پیگیری، با ارسال <b>کُد رهگیری</b> به پشتیبانی پیام دهید.\n\n" +
+            //     "💻 پشتیبانی نت‌کی: <code>@NetKeySupport</code>\n" +
+            //     "🆔 کد رهگیری: <code>" + userId + "</code>",
+            //     parseMode: ParseMode.Html
+            // );
 
             var adminId = query.From.Id;
             await _bot.SendMessage(
                 adminId,
-                "❌ <b>همکار گرامی</b>\n" +
+                "⚠️ <b>همکار گرامی</b>\n" +
                 "رسیدی که <b>رد</b> کردید با موفقیت ثبت و به کاربر اطلاع داده شد.\n\n" +
                 "📝 لطفاً <b>علت رد</b> را با فرمت زیر ارسال کنید:\n" +
                 "<code>علت:[userId]:[دلیل رد رسید]</code>\n\n" +
-                "📞 لطفاً در دسترس باشید؛ ممکن است کاربر با <b>کُد رهگیری</b> برای پیگیری به شما مراجعه کند.\n" +
-                "🆔 کُد رهگیری: <code>" + userId + "</code>",
+                "📌 لطفاً در دسترس باشید؛ ممکن است کاربر با <b>کُد رهگیری</b> برای پیگیری به شما مراجعه کند.\n\n" +
+                "🆔 <code>" + userId + "</code>",
                 parseMode: Telegram.Bot.Types.Enums.ParseMode.Html
             );
         }
@@ -296,7 +304,8 @@ replyMarkup: new InlineKeyboardMarkup(buttons));
 
 📌 نکات مهم
 1) مبلغ درج‌شده در رسید باید دقیقاً با مبلغ طرح یکسان باشد.
-2) لینک VLESS را بر اساس شناسه تلگرام کاربر تولید کنید (بایند به {message.From.Id}).";
+2) لینک Vless را بر اساس شناسه تلگرام کاربر تولید کنید: " + 
+"[<code>" + message.From.Id + "</code>]";
 
             using var stream = System.IO.File.OpenRead(path);
             var buttons = new InlineKeyboardMarkup(new[]
@@ -307,7 +316,11 @@ replyMarkup: new InlineKeyboardMarkup(buttons));
                 InlineKeyboardButton.WithCallbackData("رد", $"reject:{message.From.Id}")
             }
         });
-            await _bot.SendPhoto(AdminChatId, InputFile.FromStream(stream, Path.GetFileName(path)), caption: caption, replyMarkup: buttons);
+            await _bot.SendPhoto(AdminChatId, 
+                InputFile.FromStream(stream, Path.GetFileName(path)), 
+                caption: caption,
+                parseMode: ParseMode.Html, 
+                replyMarkup: buttons);
             await _bot.SendMessage(message.Chat.Id, @"🙏 با تشکر از اعتماد شما
 📩 رسید با موفقیت دریافت شد.
 لطفاً تا تأیید نهایی توسط همکاران عزیز ما در نت‌کی شکیبا باشید 🌸");
