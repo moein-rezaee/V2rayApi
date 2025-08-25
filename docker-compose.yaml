@@ -7,11 +7,11 @@ services:
       dockerfile: Dockerfile
     image: netkey-bot:1.0.0
     restart: always
-    # container_name: netkey-bot
-    container_name: netkeytest-bot
+    container_name: netkey-bot
+    # container_name: netkeytest-bot
     environment:
-      # ASPNETCORE_URLS: "http://0.0.0.0:5152"
-      ASPNETCORE_URLS: "http://0.0.0.0:5153"
+      ASPNETCORE_URLS: "http://0.0.0.0:5152"
+      # ASPNETCORE_URLS: "http://0.0.0.0:5153"
       DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: "false"
     volumes:
       - ./receipts:/receipts:rw 
