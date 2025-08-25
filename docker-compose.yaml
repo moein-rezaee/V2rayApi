@@ -10,6 +10,7 @@ services:
     container_name: netkey-bot
     environment:
       ASPNETCORE_URLS: "http://0.0.0.0:5152"
+      # ASPNETCORE_URLS: "http://0.0.0.0:5153"
       DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: "false"
     volumes:
       - ./receipts:/receipts:rw 
