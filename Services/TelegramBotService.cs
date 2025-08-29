@@ -13,9 +13,9 @@ public class TelegramBotService
     private readonly TelegramBotClient _bot;
     private readonly ILogger<TelegramBotService> _logger;
     private readonly IConfiguration _config;
-    private readonly XuiService _xuiService;
     private readonly ConcurrentDictionary<long, Plan> _userPlans = new();
-    private readonly ConcurrentDictionary<long, string> _userResponse = new();
+    private readonly string ACTIVE_PLAN = "Plans";
+    // private readonly string ACTIVE_PLAN = "SpecialPlans";
 
     private long AdminChatId => long.Parse(_config["Telegram:AdminChatId"] ?? "0");
     private string CardNumber => _config["Payment:CardNumber"] ?? string.Empty;
@@ -25,10 +25,13 @@ public class TelegramBotService
     {
         return new ReplyKeyboardMarkup([
             [
-                // new KeyboardButton("💵 خرید کانفیگ ")
+                new KeyboardButton("💵 خرید کانفیگ "),
+                // new KeyboardButton("🎉 خرید کانفیگ جشنواره"),
+            ],
+            [
                 new KeyboardButton("👨‍💻 پشتیبانی"),
-                new KeyboardButton("🎉 خرید کانفیگ جشنواره"),
-            ]
+                new KeyboardButton("📩 دانلود نرم افزارها"),
+            ],
         ])
         {
             ResizeKeyboard = true,      // سایز بهینه
@@ -57,7 +60,6 @@ public class TelegramBotService
     {
         _config = config;
         _logger = logger;
-        _xuiService = xuiService;
         var token = _config["Telegram:Token"] ?? throw new ArgumentNullException("Telegram token not configured");
         _bot = new TelegramBotClient(token);
     }
@@ -118,6 +120,71 @@ public class TelegramBotService
 • طرح انتخابی
 • توضیح کوتاه مشکل/درخواست
 تا سریع‌تر رسیدگی کنیم 🙏");
+        }
+        else if (message.Text.Contains("دانلود نرم افزارها") && message.Chat.Id != AdminChatId)
+        {
+
+            var userId = message.Chat.Id;
+
+            var text =
+                "📥 <b>دانلود نرم‌افزارهای اتصال</b>\n" +
+                "لطفاً با توجه به دستگاه‌تون یکی از گزینه‌های زیر رو انتخاب کنید. لینک‌ها <b>رسمی</b> هستند.\n\n" +
+                "🤖 اندروید   🖥️ ویندوز/لینوکس   🍎 آیفون/مک\n";
+
+            var kb = new InlineKeyboardMarkup(new[]
+            {
+    // ANDROID (Google Play)
+    new[]
+    {
+        InlineKeyboardButton.WithUrl("🤖 اندروید | NPV Tunnel", "https://play.google.com/store/apps/details?id=com.napsternetlabs.napsternetv"),
+    },
+    new[]
+    {
+        InlineKeyboardButton.WithUrl("🤖 اندروید | HiddifyNG", "https://play.google.com/store/apps/details?id=ang.hiddify.com"),
+    },
+    new[]
+    {
+        InlineKeyboardButton.WithUrl("🤖 اندروید | v2rayNG", "https://play.google.com/store/apps/details?id=dev.hexasoftware.v2box"),
+    },
+
+    // WINDOWS / LINUX (GitHub Releases)
+    new[]
+    {
+        InlineKeyboardButton.WithUrl("🖥️ ویندوز/لینوکس | Hiddify (Releases)", "https://github.com/hiddify/hiddify-app/releases"),
+    },
+    new[]
+    {
+        InlineKeyboardButton.WithUrl("🖥️ ویندوز/لینوکس | Nekoray (Releases)", "https://github.com/Matsuridayo/nekoray/releases"),
+    },
+    new[]
+    {
+        InlineKeyboardButton.WithUrl("🖥️ ویندوز/لینوکس | v2rayN (Releases)", "https://github.com/2dust/v2rayN/releases"),
+    },
+    // (اختیاری برای لینوکس)
+    new[]
+    {
+        InlineKeyboardButton.WithUrl("🐧 لینوکس | v2rayA (Releases)", "https://github.com/v2rayA/v2rayA/releases"),
+    },
+
+    // iOS (App Store)
+    new[]
+    {
+        InlineKeyboardButton.WithUrl("🍎 مک/آیفون | NPV Tunnel", "https://apps.apple.com/app/npv-tunnel/id1629465476"),
+    },
+    new[]
+    {
+        InlineKeyboardButton.WithUrl("🍎 مک/آیفون | Hiddify", "https://apps.apple.com/app/hiddify-proxy-vpn/id6596777532"),
+    },
+    new[]
+    {
+        InlineKeyboardButton.WithUrl("🍎 مک/آیفون | V2Box (کلاینت V2Ray)", "https://apps.apple.com/app/v2box-v2ray-client/id6446814690"),
+    },
+});
+
+            await _bot.SendMessage(chatId: userId, text: text, parseMode: ParseMode.Html, replyMarkup: kb);
+
+
+
         }
         else if (message.Text.Contains("علت:") && message.Chat.Id == AdminChatId)
         {
@@ -184,21 +251,21 @@ public class TelegramBotService
 
     private async Task SendPlanOptions(long chatId)
     {
-        var plans = _config.GetSection("SpecialPlans").Get<List<Plan>>() ?? new();
+        var plans = _config.GetSection(ACTIVE_PLAN).Get<List<Plan>>() ?? new();
         // var plans = _config.GetSection("Plans").Get<List<Plan>>() ?? new();
         var buttons = plans.Select(p => new[] { InlineKeyboardButton.WithCallbackData($"{p.Name} - {p.Price} هزار تومان", $"plan:{p.Id}") });
-        //         await _bot.SendMessage(chatId, @"همراه گرامی نت کی 🌹
-        // تعرفه‌های نت‌کی خدمتتون ارسال شد.
-        // لطفاً یکی از طرح‌ها رو انتخاب بفرمایید تا همکاران ما در نت کی در سریع‌ترین زمان فعال‌سازی طرح شما رو انجام بدن.",
-        // replyMarkup: new InlineKeyboardMarkup(buttons));
-        await _bot.SendMessage(chatId, @"به جشنواره فروش نت کی خوش اومدید 🎉
+        await _bot.SendMessage(chatId, @"همراه گرامی نت کی 🌹
+تعرفه‌های نت‌کی خدمتتون ارسال شد.
 لطفاً یکی از طرح‌ها رو انتخاب بفرمایید تا همکاران ما در نت کی در سریع‌ترین زمان فعال‌سازی طرح شما رو انجام بدن.",
-        replyMarkup: new InlineKeyboardMarkup(buttons));
+replyMarkup: new InlineKeyboardMarkup(buttons));
+        //         await _bot.SendMessage(chatId, @"به جشنواره فروش نت کی خوش اومدید 🎉
+        // لطفاً یکی از طرح‌ها رو انتخاب بفرمایید تا همکاران ما در نت کی در سریع‌ترین زمان فعال‌سازی طرح شما رو انجام بدن.",
+        //         replyMarkup: new InlineKeyboardMarkup(buttons));
     }
 
     private async Task SendPlanOptionsAgain(long chatId)
     {
-        var plans = _config.GetSection("SpecialPlans").Get<List<Plan>>() ?? new();
+        var plans = _config.GetSection(ACTIVE_PLAN).Get<List<Plan>>() ?? new();
         // var plans = _config.GetSection("Plans").Get<List<Plan>>() ?? new();
         var buttons = plans.Select(p => new[] { InlineKeyboardButton.WithCallbackData($"{p.Name} - {p.Price} هزار تومان", $"plan:{p.Id}") });
         await _bot.SendMessage(chatId, @"همراه گرامی نت کی 🌹
@@ -213,7 +280,7 @@ replyMarkup: new InlineKeyboardMarkup(buttons));
         if (query.Data.StartsWith("plan:"))
         {
             var planId = query.Data.Split(':')[1];
-            var plan = _config.GetSection("SpecialPlans").Get<List<Plan>>()?.FirstOrDefault(p => p.Id == planId);
+            var plan = _config.GetSection(ACTIVE_PLAN).Get<List<Plan>>()?.FirstOrDefault(p => p.Id == planId);
             if (plan != null)
             {
                 _userPlans[query.From.Id] = plan;
@@ -255,15 +322,6 @@ replyMarkup: new InlineKeyboardMarkup(buttons));
         else if (query.Data.StartsWith("reject:"))
         {
             var userId = long.Parse(query.Data.Split(':')[1]);
-            // await _bot.SendMessage(
-            //     userId,
-            //     "⚠️ <b>کاربر گرامی</b>، رسید شما توسط همکاران ما در <b>نت‌کی</b> <b>رد شد</b>.\n\n" +
-            //     "⏳ تا لحظاتی دیگر <b>علت رد رسید</b> برای شما ارسال خواهد شد.\n\n" +
-            //     "🆘 برای پیگیری، با ارسال <b>کُد رهگیری</b> به پشتیبانی پیام دهید.\n\n" +
-            //     "💻 پشتیبانی نت‌کی: <code>@NetKeySupport</code>\n" +
-            //     "🆔 کد رهگیری: <code>" + userId + "</code>",
-            //     parseMode: ParseMode.Html
-            // );
 
             var adminId = query.From.Id;
             await _bot.SendMessage(
@@ -274,7 +332,7 @@ replyMarkup: new InlineKeyboardMarkup(buttons));
                 "<code>علت:[userId]:[دلیل رد رسید]</code>\n\n" +
                 "📌 لطفاً در دسترس باشید؛ ممکن است کاربر با <b>کُد رهگیری</b> برای پیگیری به شما مراجعه کند.\n\n" +
                 "🆔 <code>" + userId + "</code>",
-                parseMode: Telegram.Bot.Types.Enums.ParseMode.Html
+                parseMode: ParseMode.Html
             );
         }
         await _bot.AnswerCallbackQuery(query.Id);
@@ -304,7 +362,7 @@ replyMarkup: new InlineKeyboardMarkup(buttons));
 
 📌 نکات مهم
 1) مبلغ درج‌شده در رسید باید دقیقاً با مبلغ طرح یکسان باشد.
-2) لینک Vless را بر اساس شناسه تلگرام کاربر تولید کنید: " + 
+2) لینک Vless را بر اساس شناسه تلگرام کاربر تولید کنید: " +
 "[<code>" + message.From.Id + "</code>]";
 
             using var stream = System.IO.File.OpenRead(path);
@@ -316,10 +374,10 @@ replyMarkup: new InlineKeyboardMarkup(buttons));
                 InlineKeyboardButton.WithCallbackData("رد", $"reject:{message.From.Id}")
             }
         });
-            await _bot.SendPhoto(AdminChatId, 
-                InputFile.FromStream(stream, Path.GetFileName(path)), 
+            await _bot.SendPhoto(AdminChatId,
+                InputFile.FromStream(stream, Path.GetFileName(path)),
                 caption: caption,
-                parseMode: ParseMode.Html, 
+                parseMode: ParseMode.Html,
                 replyMarkup: buttons);
             await _bot.SendMessage(message.Chat.Id, @"🙏 با تشکر از اعتماد شما
 📩 رسید با موفقیت دریافت شد.
