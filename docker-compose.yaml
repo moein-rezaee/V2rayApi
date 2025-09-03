@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: netkey-bot:1.2.0
+    image: netkey-bot:1.2.1
     restart: always
     container_name: netkey-bot
     # container_name: netkeytest-bot

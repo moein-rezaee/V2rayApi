@@ -14,7 +14,7 @@ public class TelegramBotService
     private readonly ILogger<TelegramBotService> _logger;
     private readonly IConfiguration _config;
     private readonly ConcurrentDictionary<long, Plan> _userPlans = new();
-    private readonly string ACTIVE_PLAN = "Plans";
+    private readonly string ACTIVE_PLAN = "Eco";
     // private readonly string ACTIVE_PLAN = "SpecialPlans";
 
     private long AdminChatId => long.Parse(_config["Telegram:AdminChatId"] ?? "0");
@@ -254,9 +254,13 @@ public class TelegramBotService
         var plans = _config.GetSection(ACTIVE_PLAN).Get<List<Plan>>() ?? new();
         // var plans = _config.GetSection("Plans").Get<List<Plan>>() ?? new();
         var buttons = plans.Select(p => new[] { InlineKeyboardButton.WithCallbackData($"{p.Name} - {p.Price} هزار تومان", $"plan:{p.Id}") });
-        await _bot.SendMessage(chatId, @"همراه گرامی نت کی 🌹
-تعرفه‌های نت‌کی خدمتتون ارسال شد.
-لطفاً یکی از طرح‌ها رو انتخاب بفرمایید تا همکاران ما در نت کی در سریع‌ترین زمان فعال‌سازی طرح شما رو انجام بدن.",
+        await _bot.SendMessage(chatId, @"📦 همه‌ی پلن‌ها یک‌ماهه هستن.
+🖥 روی همه سیستم‌عامل‌ها و دیوایس ها بدون محدودیت کار می‌کنن (اندروید، آیفون، ویندوز، مک، لینوکس).
+
+🌹 تعرفه‌ها همین الان خدمتتون ارسال شد.
+کافیه پلن مناسب خودتون رو انتخاب کنید تا همکاران ما سریع براتون فعال‌سازی کنن.
+
+از منوی زیر گزینه دلخواهتون رو انتخاب کنید👇🏻",
 replyMarkup: new InlineKeyboardMarkup(buttons));
         //         await _bot.SendMessage(chatId, @"به جشنواره فروش نت کی خوش اومدید 🎉
         // لطفاً یکی از طرح‌ها رو انتخاب بفرمایید تا همکاران ما در نت کی در سریع‌ترین زمان فعال‌سازی طرح شما رو انجام بدن.",
