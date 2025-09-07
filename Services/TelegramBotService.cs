@@ -63,9 +63,11 @@ public class TelegramBotService
         {
             try
             {
-                var member = await _bot.GetChatMember(channel.Username, userId);
-                if (member.Status is ChatMemberStatus.Left or ChatMemberStatus.Kicked)
+                var member = await _bot.GetChatMember(new ChatId(channel.Username), userId);
+                if (member.Status is not (ChatMemberStatus.Member or ChatMemberStatus.Administrator or ChatMemberStatus.Creator or ChatMemberStatus.Restricted))
+                {
                     return false;
+                }
             }
             catch (Exception ex)
             {
@@ -73,6 +75,7 @@ public class TelegramBotService
                 return false;
             }
         }
+
         return true;
     }
 
@@ -89,7 +92,7 @@ public class TelegramBotService
 
         await _bot.SendMessage(
             userId,
-            "🎉 برای استفاده از ربات، ابتدا در کانال‌های زیر عضو شوید:",
+            "برای استفاده از ربات، لطفاً ابتدا در کانال‌های زیر عضو شوید و سپس روی دکمه «عضو شدم» بزنید 📢",
             replyMarkup: new InlineKeyboardMarkup(buttons)
         );
     }
