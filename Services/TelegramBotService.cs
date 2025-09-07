@@ -63,7 +63,9 @@ public class TelegramBotService
         {
             try
             {
-                var username = channel.Username.StartsWith("@") ? channel.Username : $"@{channel.Username}";
+                var username = channel.Username?.Trim() ?? string.Empty;
+                if (string.IsNullOrEmpty(username)) continue;
+                if (!username.StartsWith("@")) username = $"@{username}";
                 var chatId = new ChatId(username);
                 var member = await _bot.GetChatMember(chatId, userId);
                 if (member.Status is not (ChatMemberStatus.Member or ChatMemberStatus.Administrator or ChatMemberStatus.Creator))
@@ -138,7 +140,8 @@ public class TelegramBotService
 
     private async Task HandleMessage(Message message)
     {
-        var isMember = await EnsureUserIsMember(message.Chat.Id);
+        var userId = message.From?.Id ?? message.Chat.Id;
+        var isMember = await EnsureUserIsMember(userId);
         if (!isMember) return;
 
         if (message.Text == "/start" && message.Chat.Id != AdminChatId)
@@ -180,7 +183,7 @@ public class TelegramBotService
         else if (message.Text?.Contains("دانلود نرم افزارها") == true && message.Chat.Id != AdminChatId)
         {
 
-            var userId = message.Chat.Id;
+            var chatId = message.Chat.Id;
 
             var text =
                 "📥 <b>دانلود نرم‌افزارهای اتصال</b>\n" +
@@ -237,22 +240,22 @@ public class TelegramBotService
     },
 });
 
-            await _bot.SendMessage(chatId: userId, text: text, parseMode: ParseMode.Html, replyMarkup: kb);
+            await _bot.SendMessage(chatId: chatId, text: text, parseMode: ParseMode.Html, replyMarkup: kb);
 
 
 
         }
         else if (message.Text?.Contains("علت:") == true && message.Chat.Id == AdminChatId)
         {
-            var userId = long.Parse(message.Text.Split(':')[1]);
+            var targetUserId = long.Parse(message.Text.Split(':')[1]);
             var reason = string.Join(':', message.Text.Split(':').Skip(2));
             await _bot.SendMessage(
-                userId,
+                targetUserId,
                 "⚠️ <b>کاربر گرامی</b>، رسید شما توسط همکاران ما در <b>نت‌کی</b> <b>رد شد</b>.\n\n" +
                 $"📝 <b>علت رد:</b>\n{reason}\n\n" +
                 "🔁 لطفاً پس از اصلاح، رسید صحیح را ارسال کنید یا در صورت تمایل طرح دیگری را انتخاب نمایید.\n\n" +
                 "💻 پشتیبانی نت‌کی: \n@NetKeySupport\n\n" +
-                "🆔 کد رهگیری: \n<code>" + userId + "</code>",
+                "🆔 کد رهگیری: \n<code>" + targetUserId + "</code>",
                 parseMode: ParseMode.Html
             );
 
@@ -263,19 +266,19 @@ public class TelegramBotService
                 $"📝 <b>علت رد:</b> {reason}\n\n" +
                 "📌 لطفاً در دسترس باشید؛ احتمال دارد کاربر با <b>کد رهگیری</b> مراجعه کند.\n" +
                 "ممنون از پیگیری‌تون 🙏\n\n" +
-                "🆔 <code>" + userId + "</code>",
+                "🆔 <code>" + targetUserId + "</code>",
                 parseMode: ParseMode.Html
             );
 
         }
         else if (message.Text?.Contains("config:") == true && message.Chat.Id == AdminChatId)
         {
-            var userId = long.Parse(message.Text.Split(':')[1]);
+            var targetUserId = long.Parse(message.Text.Split(':')[1]);
             var configLink = string.Join(':', message.Text.Split(':').Skip(2));
             var qrBytes = GenerateQrCode(configLink);
             using var ms = new MemoryStream(qrBytes);
             await _bot.SendPhoto(
-                chatId: userId,
+                chatId: targetUserId,
                 photo: InputFile.FromStream(ms, "qr.png"),
                 caption:
                     "🙏 <b>با تشکر از اعتماد شما</b>\n\n" +
