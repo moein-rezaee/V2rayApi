@@ -14,6 +14,7 @@ public class TelegramBotService
     private readonly ILogger<TelegramBotService> _logger;
     private readonly IConfiguration _config;
     private readonly ConcurrentDictionary<long, Plan> _userPlans = new();
+    private readonly List<ChannelInfo> _requiredChannels;
     private readonly string ACTIVE_PLAN = "Plans";
     // private readonly string ACTIVE_PLAN = "SpecialPlans";
 
@@ -56,10 +57,61 @@ public class TelegramBotService
         };
     }
 
+    private async Task<bool> IsUserMemberOfRequiredChannels(long userId)
+    {
+        foreach (var channel in _requiredChannels)
+        {
+            try
+            {
+                var chatId = new ChatId(channel.Username.TrimStart('@'));
+                var member = await _bot.GetChatMember(chatId, userId);
+                if (member.Status is not (ChatMemberStatus.Member or ChatMemberStatus.Administrator or ChatMemberStatus.Creator))
+                {
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Cannot check membership for {Channel}", channel.Username);
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private async Task SendJoinChannelsPrompt(long userId)
+    {
+        var buttons = _requiredChannels
+            .Select(c => new[]
+            {
+                InlineKeyboardButton.WithUrl(c.Title, $"https://t.me/{c.Username.TrimStart('@')}")
+            })
+            .ToList();
+
+        buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("✅ عضو شدم", "joined") });
+
+        await _bot.SendMessage(
+            userId,
+            "برای استفاده از ربات، لطفاً ابتدا در کانال‌های زیر عضو شوید و سپس روی دکمه «عضو شدم» بزنید 📢",
+            replyMarkup: new InlineKeyboardMarkup(buttons)
+        );
+    }
+
+    private async Task<bool> EnsureUserIsMember(long userId)
+    {
+        if (userId == AdminChatId) return true;
+        if (_requiredChannels.Count == 0) return true;
+        if (await IsUserMemberOfRequiredChannels(userId)) return true;
+        await SendJoinChannelsPrompt(userId);
+        return false;
+    }
+
     public TelegramBotService(IConfiguration config, ILogger<TelegramBotService> logger, XuiService xuiService)
     {
         _config = config;
         _logger = logger;
+        _requiredChannels = _config.GetSection("Telegram:RequiredChannels").Get<List<ChannelInfo>>() ?? [];
         var token = _config["Telegram:Token"] ?? throw new ArgumentNullException("Telegram token not configured");
         _bot = new TelegramBotClient(token);
     }
@@ -85,6 +137,9 @@ public class TelegramBotService
 
     private async Task HandleMessage(Message message)
     {
+        var isMember = await EnsureUserIsMember(message.Chat.Id);
+        if (!isMember) return;
+
         if (message.Text == "/start" && message.Chat.Id != AdminChatId)
         {
             var chatId = message.Chat.Id;
@@ -105,11 +160,11 @@ public class TelegramBotService
         {
             await HandleReceipt(message);
         }
-        else if (message.Text.Contains("خرید کانفیگ") && message.Chat.Id != AdminChatId)
+        else if (message.Text?.Contains("خرید کانفیگ") == true && message.Chat.Id != AdminChatId)
         {
             await SendPlanOptions(message.Chat.Id);
         }
-        else if (message.Text.Contains("پشتیبانی") && message.Chat.Id != AdminChatId)
+        else if (message.Text?.Contains("پشتیبانی") == true && message.Chat.Id != AdminChatId)
         {
             await _bot.SendMessage(message.Chat.Id, @"👨‍💻 پشتیبانی نت‌کی
 برای ارتباط سریع: @NetKeySupport
@@ -121,7 +176,7 @@ public class TelegramBotService
 • توضیح کوتاه مشکل/درخواست
 تا سریع‌تر رسیدگی کنیم 🙏");
         }
-        else if (message.Text.Contains("دانلود نرم افزارها") && message.Chat.Id != AdminChatId)
+        else if (message.Text?.Contains("دانلود نرم افزارها") == true && message.Chat.Id != AdminChatId)
         {
 
             var userId = message.Chat.Id;
@@ -186,7 +241,7 @@ public class TelegramBotService
 
 
         }
-        else if (message.Text.Contains("علت:") && message.Chat.Id == AdminChatId)
+        else if (message.Text?.Contains("علت:") == true && message.Chat.Id == AdminChatId)
         {
             var userId = long.Parse(message.Text.Split(':')[1]);
             var reason = string.Join(':', message.Text.Split(':').Skip(2));
@@ -212,7 +267,7 @@ public class TelegramBotService
             );
 
         }
-        else if (message.Text.Contains("config:") && message.Chat.Id == AdminChatId)
+        else if (message.Text?.Contains("config:") == true && message.Chat.Id == AdminChatId)
         {
             var userId = long.Parse(message.Text.Split(':')[1]);
             var configLink = string.Join(':', message.Text.Split(':').Skip(2));
@@ -277,6 +332,29 @@ replyMarkup: new InlineKeyboardMarkup(buttons));
     private async Task HandleCallback(CallbackQuery query)
     {
         if (query.Data == null) return;
+
+        if (query.Data != "joined" && !await EnsureUserIsMember(query.From.Id))
+        {
+            await _bot.AnswerCallbackQuery(query.Id);
+            return;
+        }
+
+        if (query.Data == "joined")
+        {
+            if (await IsUserMemberOfRequiredChannels(query.From.Id))
+            {
+                await _bot.SendMessage(query.Message!.Chat.Id,
+                    "✅ عضویت شما تأیید شد!",
+                    replyMarkup: BuildMainKeyboard());
+            }
+            else
+            {
+                await SendJoinChannelsPrompt(query.Message!.Chat.Id);
+            }
+            await _bot.AnswerCallbackQuery(query.Id);
+            return;
+        }
+
         if (query.Data.StartsWith("plan:"))
         {
             var planId = query.Data.Split(':')[1];
