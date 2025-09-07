@@ -63,7 +63,8 @@ public class TelegramBotService
         {
             try
             {
-                var chatId = new ChatId(channel.Username.TrimStart('@'));
+                var username = channel.Username.StartsWith("@") ? channel.Username : $"@{channel.Username}";
+                var chatId = new ChatId(username);
                 var member = await _bot.GetChatMember(chatId, userId);
                 if (member.Status is not (ChatMemberStatus.Member or ChatMemberStatus.Administrator or ChatMemberStatus.Creator))
                 {
