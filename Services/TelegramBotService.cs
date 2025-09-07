@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Telegram.Bot;
+using Telegram.Bot.Exceptions;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
@@ -68,14 +69,20 @@ public class TelegramBotService
                 if (!username.StartsWith("@")) username = $"@{username}";
                 var chatId = new ChatId(username);
                 var member = await _bot.GetChatMember(chatId, userId);
-                if (member.Status is not (ChatMemberStatus.Member or ChatMemberStatus.Administrator or ChatMemberStatus.Creator))
+
+                if (member.Status is ChatMemberStatus.Left or ChatMemberStatus.Kicked)
                 {
                     return false;
                 }
             }
-            catch (Exception ex)
+            catch (ApiRequestException ex)
             {
                 _logger.LogWarning(ex, "Cannot check membership for {Channel}", channel.Username);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error while checking membership for {Channel}", channel.Username);
                 return false;
             }
         }
