@@ -20,6 +20,7 @@ public class TelegramBotService
     private long AdminChatId => long.Parse(_config["Telegram:AdminChatId"] ?? "0");
     private string CardNumber => _config["Payment:CardNumber"] ?? string.Empty;
     private string WalletAddress => _config["Payment:WalletAddress"] ?? string.Empty;
+    private string[] RequiredChannels => _config.GetSection("Telegram:RequiredChannels").Get<string[]>() ?? Array.Empty<string>();
 
     private static ReplyKeyboardMarkup BuildMainKeyboard()
     {
@@ -85,6 +86,16 @@ public class TelegramBotService
 
     private async Task HandleMessage(Message message)
     {
+        // Gate: force non-admins to be subscribed to all required channels
+        if (message.Chat.Id != AdminChatId)
+        {
+            var ok = await EnsureMembershipOrPrompt(message.Chat.Id, message.From!.Id);
+            if (!ok)
+            {
+                return; // Stop processing until user joins
+            }
+        }
+
         if (message.Text == "/start" && message.Chat.Id != AdminChatId)
         {
             var chatId = message.Chat.Id;
@@ -249,6 +260,77 @@ public class TelegramBotService
         return qrBytes;
     }
 
+    private InlineKeyboardMarkup BuildJoinChannelsKeyboard()
+    {
+        var rows = new List<IEnumerable<InlineKeyboardButton>>();
+        foreach (var ch in RequiredChannels)
+        {
+            var handle = ch.Trim();
+            if (string.IsNullOrWhiteSpace(handle)) continue;
+            var label = handle.StartsWith("@") ? handle : "@" + handle;
+            var urlHandle = handle.TrimStart('@');
+            rows.Add(new[] { InlineKeyboardButton.WithUrl($"عضویت در {label}", $"https://t.me/{urlHandle}") });
+        }
+        rows.Add(new[] { InlineKeyboardButton.WithCallbackData("بررسی عضویت ✅", "check_sub") });
+        return new InlineKeyboardMarkup(rows);
+    }
+
+    private async Task<bool> EnsureMembershipOrPrompt(long chatId, long userId)
+    {
+        // If no channels configured, allow.
+        if (RequiredChannels.Length == 0) return true;
+
+        if (await IsUserSubscribedToAll(userId))
+            return true;
+
+        var text = "🔒 برای استفاده از بات، لطفاً ابتدا در کانال‌های زیر عضو شوید و سپس روی دکمه ‘بررسی عضویت’ بزنید:";
+        await _bot.SendMessage(chatId, text, replyMarkup: BuildJoinChannelsKeyboard());
+        return false;
+    }
+
+    private async Task<bool> IsUserSubscribedToAll(long userId)
+    {
+        // Consider admin always subscribed
+        if (userId == AdminChatId) return true;
+
+        if (RequiredChannels.Length == 0) return true;
+
+        foreach (var ch in RequiredChannels)
+        {
+            var handle = ch?.Trim();
+            if (string.IsNullOrWhiteSpace(handle)) continue;
+            try
+            {
+                var member = await _bot.GetChatMember(handle, userId);
+                // Accept creator/administrator/member
+                var status = member.Status;
+                if (status != ChatMemberStatus.Creator &&
+                    status != ChatMemberStatus.Administrator &&
+                    status != ChatMemberStatus.Member)
+                {
+                    return false;
+                }
+            }
+            catch (Telegram.Bot.Exceptions.ApiRequestException apiEx)
+            {
+                // Common when channel hides members or bot isn't admin/member
+                if (apiEx.ErrorCode == 400 && apiEx.Message.Contains("member list is inaccessible", StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogWarning(apiEx, "Membership check inaccessible for user {UserId} in {Channel}. Bot must be admin/member in the channel.", userId, handle);
+                    return false; // Cannot verify -> treat as not subscribed
+                }
+                _logger.LogWarning(apiEx, "Telegram API error on membership check for {UserId} in {Channel}", userId, handle);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Membership check failed for user {UserId} in {Channel}", userId, handle);
+                return false;
+            }
+        }
+        return true;
+    }
+
     private async Task SendPlanOptions(long chatId)
     {
         var plans = _config.GetSection(ACTIVE_PLAN).Get<List<Plan>>() ?? new();
@@ -281,6 +363,89 @@ replyMarkup: new InlineKeyboardMarkup(buttons));
     private async Task HandleCallback(CallbackQuery query)
     {
         if (query.Data == null) return;
+        // Allow pressing the re-check button without prior membership
+        if (query.From.Id != AdminChatId && query.Data != "check_sub")
+        {
+            var ok = await IsUserSubscribedToAll(query.From.Id);
+            if (!ok)
+            {
+                var newText = "هنوز عضو همه کانال‌ها نشدی. بعد از عضویت روی ‘بررسی عضویت ✅’ بزن.";
+                try
+                {
+                    if (query.Message!.Text == newText)
+                    {
+                        await _bot.AnswerCallbackQuery(query.Id, "اول عضو شو بعد دوباره بررسی کن.", showAlert: false);
+                    }
+                    else
+                    {
+                        await _bot.EditMessageText(
+                            chatId: query.Message.Chat.Id,
+                            messageId: query.Message.MessageId,
+                            text: newText,
+                            replyMarkup: BuildJoinChannelsKeyboard()
+                        );
+                    }
+                }
+                catch (Telegram.Bot.Exceptions.ApiRequestException e) when (e.ErrorCode == 400 && e.Message.Contains("message is not modified", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Ignore harmless error
+                }
+                await _bot.AnswerCallbackQuery(query.Id);
+                return;
+            }
+        }
+
+        if (query.Data == "check_sub")
+        {
+            var ok = await IsUserSubscribedToAll(query.From.Id);
+            if (ok)
+            {
+                var successText = "✅ عضویت شما تایید شد. از منوی زیر استفاده کنید.";
+                try
+                {
+                    if (query.Message!.Text != successText)
+                    {
+                        await _bot.EditMessageText(
+                            chatId: query.Message.Chat.Id,
+                            messageId: query.Message.MessageId,
+                            text: successText,
+                            replyMarkup: null
+                        );
+                    }
+                }
+                catch (Telegram.Bot.Exceptions.ApiRequestException e) when (e.ErrorCode == 400 && e.Message.Contains("message is not modified", StringComparison.OrdinalIgnoreCase))
+                {
+                    // ignore
+                }
+                await _bot.SendMessage(query.Message.Chat.Id, "از منوی زیر یکی از گزینه‌ها رو انتخاب کن:", replyMarkup: BuildMainKeyboard());
+            }
+            else
+            {
+                var failText = "❗️ هنوز عضو همه کانال‌ها نیستی. لطفاً عضو شو و دوباره امتحان کن.";
+                try
+                {
+                    if (query.Message!.Text == failText)
+                    {
+                        await _bot.AnswerCallbackQuery(query.Id, "عضویت کامل نیست. حتما هر دو کانال را عضو شوید.", showAlert: false);
+                    }
+                    else
+                    {
+                        await _bot.EditMessageText(
+                            chatId: query.Message.Chat.Id,
+                            messageId: query.Message.MessageId,
+                            text: failText,
+                            replyMarkup: BuildJoinChannelsKeyboard()
+                        );
+                    }
+                }
+                catch (Telegram.Bot.Exceptions.ApiRequestException e) when (e.ErrorCode == 400 && e.Message.Contains("message is not modified", StringComparison.OrdinalIgnoreCase))
+                {
+                    // ignore
+                }
+            }
+            await _bot.AnswerCallbackQuery(query.Id);
+            return;
+        }
         if (query.Data.StartsWith("plan:"))
         {
             var planId = query.Data.Split(':')[1];
@@ -344,6 +509,7 @@ replyMarkup: new InlineKeyboardMarkup(buttons));
 
     private async Task HandleReceipt(Message message)
     {
+        // Membership gate already checked at HandleMessage.
         var photo = message.Photo!.Last();
         var file = await _bot.GetFile(photo.FileId);
         Directory.CreateDirectory("receipts");
